@@ -206,7 +206,7 @@ class Ui_MainWindow(object):
             channel = 'R'
         else:
             channel = 'L+R'
-        bits = 2**int(self.guiBitsEdit.text())
+        bits = int(self.guiBitsEdit.text())
 
         self.logPrint('Starting encoding: \n - Audio File: ' + soundDir + '\n - Image File: ' + imageDir + '\n - Channels used: ' + channel + '\n - LSB used: '  + str(bits))
         print((soundDir,imageDir,channel,bits))
