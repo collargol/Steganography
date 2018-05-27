@@ -1,0 +1,9 @@
+<RCC>
+  <qresource prefix="catty">
+    <file>catty.png</file>
+  </qresource>
+  <qresource prefix="icons">
+    <file>Custom-Icon-Design-All-Country-Flag-Slovakia-Flag.ico</file>
+    <file>Paomedia-Small-N-Flat-Key.ico</file>
+  </qresource>
+</RCC>
