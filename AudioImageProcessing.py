@@ -1,3 +1,4 @@
+import traceback
 import numpy as np
 import cv2
 from scipy.io import wavfile as spwav
@@ -41,93 +42,99 @@ class AudioImageProcessing:
         return bytes_list
 
     @staticmethod
-    def encodeImageInSound(audio_channel, image_bytes_list, step, bit_density=1):
-        print('min max: ', min(audio_channel), max(audio_channel))
-        modified_channel = []
-        rest_start_index = 0
-        cnt_step = 0
-        cnt_byte = 0
-        cnt_bit = 7
-        for i in range(len(audio_channel)):
-            cnt_step += 1
-            if cnt_step == step:
-                cnt_step = 0
-                if cnt_bit == -1:
-                    cnt_bit = 7
-                    cnt_byte += 1
+    def encodeImageInSound(audio_channel, image_bytes_list, step=1, bit_density=1):
+        try:
+            if not (bit_density == 1 or bit_density == 2 or bit_density == 4 or bit_density == 8):
+                raise ValueError('Bit density argument have to be 1, 2, 4 or 8')
+            modified_channel = []
+            rest_start_index = 0
+            cnt_step = 0
+            cnt_byte = 0
+            cnt_bit = 7
+            for i in range(len(audio_channel)):
+                cnt_step += 1
+                if cnt_step == step:
+                    cnt_step = 0
+                    if cnt_bit == -1:
+                        cnt_bit = 7
+                        cnt_byte += 1
                     if cnt_byte >= len(image_bytes_list) - 1:
                         rest_start_index = i
-                        print('Conversion complete')
-                        print('i: ', i)
-                        print('cnt_byte: ', cnt_byte)
+                        print('Encoding channel partially completed')
+                        # print('i: ', i)
+                        # print('cnt_byte: ', cnt_byte)
                         break
-                    elif not image_bytes_list[cnt_byte]:      # if there will be empty bytes for two channels encoding
+                    if not image_bytes_list[cnt_byte]:   # if there will be empty bytes for two channels encoding
+                        print('IN IF')
                         cnt_byte += 1
 
-                modified_value = audio_channel[i]
-                for b in range(bit_density - 1, -1, -1):
-                    temp_bit = int(image_bytes_list[cnt_byte][cnt_bit])
-                    if temp_bit:
-                        modified_value |= (1 << b)
-                    else:
-                        modified_value &= ~(1 << b)
-                    cnt_bit -= 1
-                modified_channel.append(modified_value)
+                    modified_value = audio_channel[i]
+                    for b in range(bit_density - 1, -1, -1):
+                        temp_bit = int(image_bytes_list[cnt_byte][cnt_bit])
+                        if temp_bit:
+                            modified_value |= (1 << b)
+                        else:
+                            modified_value &= ~(1 << b)
+                        cnt_bit -= 1
+                    modified_channel.append(modified_value)
 
-        new_channel = np.concatenate((modified_channel, audio_channel[rest_start_index:]))
-        print('END CONVERSION')
+            new_channel = np.concatenate((modified_channel, audio_channel[rest_start_index:]))
+            print('Encoding channel completed')
+        except ValueError as err:
+            print('Exception during encoding: ', err)
+            pass
         return new_channel
 
+    @staticmethod
+    def encodeImageInSoundWithWriting(soundDir, imageDir, outputDir, channel, bits):
+        try:
+            # reading audio file
+            print('Reading audio from ', soundDir, '...')
+            if channel == 'L' or channel == 'R' or channel == 'L+R':
+                sample_rateL, data_audioL = AudioImageProcessing.readAudioWave(soundDir, channel=0)
+                sample_rateR, data_audioR = AudioImageProcessing.readAudioWave(soundDir, channel=1)
+            else:
+                raise ValueError('Wrong channel value - should be \'L\', \'R\' or \'L+R\'')
 
-        # TODO: implement methods to get settings from GUI
-        #
-        # @staticmethod
-        # def encodeImageInSoundWithWriting(soundDir, imageDir, channel, bits, output_path):
-        #     performEncoding(soundDir, imageDir, channel, bits)
-        #
-        #
-        #
-        #     spwav.write(output_path, sample_rateL, new_audio)
-        #
-        #
-        # @staticmethod
-        # def performEncoding(soundDir, imageDir, channel, bits):
+            if sample_rateL != sample_rateR:
+                raise ValueError('Sample rates from channels differ')
+            else:
+                sample_rate = sample_rateL
 
+            # readind image
+            print('Reading image from ', imageDir, '...')
+            image_bytes_list = AudioImageProcessing.convertImageToBits(imageDir)
 
+            # encoding image in audio
+            print('Start encoding...')
+            if channel == 'L':
+                new_channelL = AudioImageProcessing.encodeImageInSound(data_audioL, image_bytes_list, step=1, bit_density=bits)
+                new_channelR = data_audioR
+            elif channel == 'R':
+                new_channelR = AudioImageProcessing.encodeImageInSound(data_audioR, image_bytes_list, step=1, bit_density=bits)
+                new_channelL = data_audioL
+            elif channel == 'L+R':
+                image_bytes_listL = image_bytes_list[:]
+                image_bytes_listL = [[] if (i % 2) == 0 else image_bytes_listL[i] for i in range(len(image_bytes_listL))]
+                image_bytes_listR = image_bytes_list[:]
+                image_bytes_listR = [[] if (i % 2) == 1 else image_bytes_listR[i] for i in range(len(image_bytes_listR))]
+                new_channelL = AudioImageProcessing.encodeImageInSound(data_audioL, image_bytes_listL, step=1, bit_density=bits)
+                new_channelR = AudioImageProcessing.encodeImageInSound(data_audioR, image_bytes_listR, step=1, bit_density=bits)
 
-        # @staticmethod
-        # def encodeImageInSound(audio_channel, image_bytes_list, step):
-        #     print('min max: ', min(audio_channel), max(audio_channel))
-        #     modified_channel = []
-        #     rest_start_index = 0
-        #     cnt_step = 0
-        #     cnt_byte = 0
-        #     cnt_bit = 7
-        #     for i in range(len(audio_channel)):
-        #         cnt_step += 1
-        #         if cnt_step == step:
-        #             cnt_step = 0
-        #             if cnt_bit == -1:
-        #                 cnt_bit = 7
-        #                 cnt_byte += 1
-        #                 if cnt_byte >= len(image_bytes_list) - 1:
-        #                     rest_start_index = i
-        #                     print('Conversion complete')
-        #                     print('i: ', i)
-        #                     print('cnt_byte: ', cnt_byte)
-        #                     break
-        #                 elif not image_bytes_list[cnt_byte]:  # if there will be empty bytes for two channels encoding
-        #                     cnt_byte += 1
-        #             temp_bit = int(image_bytes_list[cnt_byte][cnt_bit])
-        #             if temp_bit:
-        #                 modified_value = audio_channel[i] | 1
-        #             else:
-        #                 modified_value = audio_channel[i] & ~1
-        #             modified_channel.append(modified_value)
-        #             cnt_bit -= 1
-        #     new_channel = np.concatenate((modified_channel, audio_channel[rest_start_index:]))
-        #     print('END CONVERSION')
-        #     return new_channel
+            # joining both channels
+            print('Writing to ', outputDir, '...')
+            new_channels = [[new_channelL[i], new_channelR[i]] for i in range(len(new_channelL))]
+            new_audio = np.array(new_channels, dtype=np.int16)
+
+            # writing to new file
+            spwav.write(outputDir, sample_rate, new_audio)
+
+        except ValueError as err:
+            print('Exception: ', err)
+            pass
+        except Exception as exc:
+            traceback.print_exc()
+            pass
 
 
 audio_path = 'private_investigations.wav'
@@ -135,27 +142,8 @@ output_path = 'MODIFIED.wav'
 image_path = 'pig_photo.jpg'
 
 if __name__ == '__main__':
-    sample_rateL, data_audioL = AudioImageProcessing.readAudioWave(audio_path, channel=0)
-    sample_rateR, data_audioR = AudioImageProcessing.readAudioWave(audio_path, channel=1)
-
-    print('min and max in audio: ', min(data_audioL), max(data_audioR))
-
-    print(len(data_audioL))
-    image_bytes_list = AudioImageProcessing.convertImageToBits(image_path)
-    print(len(image_bytes_list))
-    modified_channel = AudioImageProcessing.encodeImageInSound(data_audioL, image_bytes_list, 1)
-
-    print('min and max in modified: ', min(modified_channel), max(modified_channel))
-    new_channels = [[modified_channel[i], data_audioR[i]] for i in range(len(modified_channel))]
-
-    new_audio = np.array(new_channels, dtype=np.int16)
-    spwav.write('MODIFIED.wav', sample_rateL, new_audio)
-
-
-    #print(im)
-
-
-
-
-    #print(bytes_list)
-    #print(len(bytes_list))
+    try:
+        AudioImageProcessing.encodeImageInSoundWithWriting(audio_path, image_path, output_path, 'L+R', 1)
+    except Exception as exc:
+        print('EXCEPTION')
+        traceback.print_exc()
