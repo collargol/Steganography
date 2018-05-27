@@ -82,8 +82,8 @@ class Ui_MainWindow(object):
         self.guiChannelsLRB.setObjectName(_fromUtf8("guiChannelsLRB"))
         self.guiBitsSlider = QtGui.QSlider(self.guiTabToSound)
         self.guiBitsSlider.setGeometry(QtCore.QRect(200, 140, 121, 22))
-        self.guiBitsSlider.setMinimum(1)
-        self.guiBitsSlider.setMaximum(8)
+        self.guiBitsSlider.setMinimum(0)
+        self.guiBitsSlider.setMaximum(3)
         self.guiBitsSlider.setPageStep(1)
         self.guiBitsSlider.setOrientation(QtCore.Qt.Horizontal)
         self.guiBitsSlider.setTickPosition(QtGui.QSlider.TicksAbove)
@@ -141,7 +141,7 @@ class Ui_MainWindow(object):
         self.guiFromSoundImDirButt.clicked.connect(self.fromSoundImageButtonClicked)
         self.guiFromSoundSoundDirButt.clicked.connect(self.fromSoundSoundButtonClicked)
         self.guiBitsEdit.setText(str(1))
-        self.guiBitsSlider.valueChanged.connect(lambda e: self.guiBitsEdit.setText(str(e)))
+        self.guiBitsSlider.valueChanged.connect(lambda e: self.guiBitsEdit.setText(str(2**e)))
         self.guiEncodeButt.clicked.connect(self.encodeStart)
         self.guiEncodeButt_3.clicked.connect(self.decodeStart) #decode button
         
@@ -221,7 +221,7 @@ class Ui_MainWindow(object):
             self.logPrint("Improper input sound file directory")
             return
  
-        self.logPrint('Starting decoding: \n - Audio File: ' + soundDir + '\n - Image File: ' + imageDir)
+        self.logPrint('Starting decoding: \n - Audio File: ' + soundDir + '\n - Output directory: ' + imageDir)
         print((soundDir,imageDir))
         #WYWOŁANIE  DEKODOWANIA TUTAJ 
 
