@@ -2,9 +2,12 @@ import traceback
 import numpy as np
 import cv2
 from scipy.io import wavfile as spwav
+import wave
+import struct
 
 
 class AudioImageProcessing:
+    log = []
 
     @staticmethod
     def readAudioWave(path, channel=0):
@@ -17,9 +20,9 @@ class AudioImageProcessing:
             else:
                 data_audio = file_audio[1]
         except TypeError:
-            print('Error when extracting raw data - check number of file\'s channels')
+            AudioImageProcessing.logPut('Error when extracting raw data - check number of file\'s channels')
         except IndexError:
-            print('Error when reading data')
+            AudioImageProcessing.logPut('Error when reading data')
             data_audio = None
         return [sample_rate, data_audio]
 
@@ -53,13 +56,13 @@ class AudioImageProcessing:
                         cnt_byte += 1
                     if cnt_byte > len(image_bytes_list) - 1:
                         rest_start_index = i
-                        print('Encoding channel partially completed')
+                        AudioImageProcessing.logPut('Encoding channel partially completed')
                         break
                     if not image_bytes_list[cnt_byte]:   # if there will be empty bytes for two channels encoding
                         cnt_byte += 1
                         if cnt_byte > len(image_bytes_list) - 1:
                             rest_start_index = i
-                            print('Encoding channel partially completed')
+                            AudioImageProcessing.logPut('Encoding channel partially completed')
                             break
 
                     modified_value = audio_channel[i]
@@ -73,10 +76,10 @@ class AudioImageProcessing:
                     modified_channel.append(modified_value)
 
             new_channel = np.concatenate((modified_channel, audio_channel[rest_start_index:]))
-            print('Encoding channel completed')
+            AudioImageProcessing.logPut('Encoding channel completed')
             return new_channel
         except ValueError as err:
-            print('Exception during encoding: ', err)
+            AudioImageProcessing.logPut('Exception during encoding: ', err)
             pass
 
 
@@ -84,11 +87,11 @@ class AudioImageProcessing:
     def encodeImageInSoundWithWriting(soundDir, imageDir, outputDir, channel, bits):
         try:
             # reading audio file
-            print('Reading audio from ', soundDir, '...')
+            AudioImageProcessing.logPut('Reading audio from ' +  soundDir + '...')
             if channel == 'L' or channel == 'R' or channel == 'L+R':
-                print('Encoding left channel')
+                AudioImageProcessing.logPut('Encoding left channel')
                 sample_rateL, data_audioL = AudioImageProcessing.readAudioWave(soundDir, channel=0)
-                print('Encoding right channel')
+                AudioImageProcessing.logPut('Encoding right channel')
                 sample_rateR, data_audioR = AudioImageProcessing.readAudioWave(soundDir, channel=1)
             else:
                 raise ValueError('Wrong channel value - should be \'L\', \'R\' or \'L+R\'')
@@ -99,19 +102,19 @@ class AudioImageProcessing:
                 sample_rate = sample_rateL
 
             # readind image
-            print('Reading image from ', imageDir, '...')
+            AudioImageProcessing.logPut('Reading image from '+ imageDir + '...')
             image_bytes_list = AudioImageProcessing.convertImageToBits(imageDir)
 
             # encoding image in audio
-            print('Start encoding...')
+            AudioImageProcessing.logPut('Start encoding...')
             if channel == 'L':
                 new_channelL = AudioImageProcessing.encodeImageInSound(data_audioL, image_bytes_list, step=1, bit_density=bits)
                 new_channelR = data_audioR
-                print('LENGTHS:', len(new_channelL), len(new_channelR))
+                AudioImageProcessing.logPut('LENGTHS:', len(new_channelL), len(new_channelR))
             elif channel == 'R':
                 new_channelR = AudioImageProcessing.encodeImageInSound(data_audioR, image_bytes_list, step=1, bit_density=bits)
                 new_channelL = data_audioL
-                print('LENGTHS:', len(new_channelR), len(new_channelL))
+                AudioImageProcessing.logPut('LENGTHS:', len(new_channelR), len(new_channelL))
             elif channel == 'L+R':
                 image_bytes_listL = image_bytes_list[:]
                 image_bytes_listL = [[] if (i % 2) == 0 else image_bytes_listL[i] for i in range(len(image_bytes_listL))]
@@ -123,20 +126,21 @@ class AudioImageProcessing:
                 new_channelR = AudioImageProcessing.encodeImageInSound(data_audioR, image_bytes_listR, step=1, bit_density=bits)
 
             # joining both channels
-            print('Preparing encoded data to write to file...')
+            AudioImageProcessing.logPut('Preparing encoded data to write to file...')
             if len(new_channelL) != len(new_channelR):
                 raise ValueError('Lengths of channels differ')
-            new_channels = [[new_channelL[i], new_channelR[i]] for i in range(len(new_channelL))]
-            del new_channelL
-            del new_channelR
-            new_audio = np.array(new_channels, dtype=np.int16)
 
             # writing to new file
-            print('Writing encoded data to ', outputDir, '...')
-            spwav.write(outputDir, sample_rate, new_audio)
-
+            AudioImageProcessing.logPut('Writing encoded data to ' +  outputDir +'...')
+            newF = wave.open(outputDir,'wb')
+            newF.setnchannels(2)
+            newF.setsampwidth(2)
+            newF.setframerate(sample_rate)         
+            new_channels = [newF.writeframesraw(struct.pack('<hh', l, r )) for l,r  in zip(new_channelL,new_channelR)]
+            newF.close()
+            AudioImageProcessing.logPut('Encoding finished')
         except ValueError as err:
-            print('Exception: ', err)
+            AudioImageProcessing.logPut('Exception: ', err)
             pass
         except Exception as exc:
             traceback.print_exc()
@@ -149,7 +153,7 @@ class AudioImageProcessing:
         # end of jpeg file: 0xFF, 0xD9
         try:
             # read audio data
-            print('Reading encoded audio data from ', modifiedAudioDir, '...')
+            AudioImageProcessing.logPut('Reading encoded audio data from ' +  modifiedAudioDir +'...')
             sample_rateL, data_audioL = AudioImageProcessing.readAudioWave(modifiedAudioDir, channel=0)
             sample_rateR, data_audioR = AudioImageProcessing.readAudioWave(modifiedAudioDir, channel=1)
             if sample_rateL != sample_rateR:
@@ -157,7 +161,7 @@ class AudioImageProcessing:
             samples_amount = len(data_audioL)
 
             # decoding
-            print('Start decoding...')
+            AudioImageProcessing.logPut('Start decoding...')
             if channel == 'L' or channel == 'R':
                 bytes_values = []
                 temp_bits = []
@@ -171,7 +175,7 @@ class AudioImageProcessing:
                         bytes_values.append(AudioImageProcessing.getByteValueFromBits(temp_bits))
                         temp_bits = []
                     if len(bytes_values) >= 2 and bytes_values[-1] == 0xD9 and bytes_values[-2] == 0xFF:
-                        print('Decoding ended')
+                        AudioImageProcessing.logPut('Decoding ended')
                         break
                     elif len(temp_bits) > 8:
                         raise ArithmeticError('Too large bits list - more than 8 bits read')
@@ -191,24 +195,25 @@ class AudioImageProcessing:
                         bytes_values.append(AudioImageProcessing.getByteValueFromBits(temp_bitsR))
                         temp_bitsR = []
                     if len(bytes_values) >= 2 and bytes_values[-1] == 0xD9 and bytes_values[-2] == 0xFF:
-                        print('Decoding ended')
+                        AudioImageProcessing.logPut('Decoding ended')
                         break
                     if len(temp_bitsL) == 8:
                         bytes_values.append(AudioImageProcessing.getByteValueFromBits(temp_bitsL))
                         temp_bitsL = []
                     if len(bytes_values) >= 2 and bytes_values[-1] == 0xD9 and bytes_values[-2] == 0xFF:
-                        print('Decoding ended')
+                        AudioImageProcessing.logPut('Decoding ended')
                         break
 
 
-            # writing to file
-            print('Processing decoded data...')
+            # writing to file\
+            AudioImageProcessing.logPut('Processing decoded data...')
             bytes_array = bytearray(bytes_values)
-            print('Writing decoded data to ', outputImageDir, '...')
+            AudioImageProcessing.logPut('Writing decoded data to ' +  outputImageDir + '...')
             output_file = open('decoded_file.txt', 'wb')
             output_file.write(bytes_array)
             output_image = open(outputImageDir, 'wb')
             output_image.write(bytes_array)
+            AudioImageProcessing.logPut('Decoding finished')
 
         except ArithmeticError as aerr:
             pass
@@ -230,7 +235,18 @@ class AudioImageProcessing:
             temp_value += byte[i] * 2 ** i
         return temp_value
 
-###########################################################
+    @staticmethod
+    def logPut(string):
+        AudioImageProcessing.log.append(string)
+        
+    @staticmethod
+    def logGet():
+        return AudioImageProcessing.log
+    @staticmethod
+    def logClear():
+        AudioImageProcessing.log = []
+
+###########################################################\
 
 audio_path = 'private_investigations.wav'
 output_path = 'MODIFIED.wav'
@@ -241,5 +257,5 @@ if __name__ == '__main__':
        AudioImageProcessing.encodeImageInSoundWithWriting(audio_path, image_path, output_path, 'L+R', 4)
        AudioImageProcessing.decodeImageFromAudio(output_path, 'decoded_image.jpg', 'L+R', 4)
     except Exception as exc:
-        print('EXCEPTION')
+        AudioImageProcessing.logPut('EXCEPTION')
         traceback.print_exc()

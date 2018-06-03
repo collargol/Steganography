@@ -8,6 +8,10 @@
 
 from PyQt4 import QtCore, QtGui
 import time
+import AudioImageProcessing
+import threading
+
+threads = []
 
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
@@ -30,7 +34,7 @@ class Ui_MainWindow(object):
         MainWindow.setMinimumSize(QtCore.QSize(722, 474))
         MainWindow.setMaximumSize(QtCore.QSize(721, 474))
         icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap(_fromUtf8(":/icons/Custom-Icon-Design-All-Country-Flag-Slovakia-Flag.ico")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon.addPixmap(QtGui.QPixmap(_fromUtf8(":/icons/Paomedia-Small-N-Flat-Key.ico")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         MainWindow.setWindowIcon(icon)
         self.centralwidget = QtGui.QWidget(MainWindow)
         self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
@@ -144,6 +148,11 @@ class Ui_MainWindow(object):
         self.guiBitsSlider.valueChanged.connect(lambda e: self.guiBitsEdit.setText(str(2**e)))
         self.guiEncodeButt.clicked.connect(self.encodeStart)
         self.guiEncodeButt_3.clicked.connect(self.decodeStart) #decode button
+        self.guiTabs.currentChanged.connect(self.tabChanged)
+
+        t = threading.Thread(target=self.threadLogReader)
+        threads.append(t)
+        t.start()
         
         self.retranslateUi(MainWindow)
         self.guiTabs.setCurrentIndex(0)
@@ -171,8 +180,21 @@ class Ui_MainWindow(object):
         self.guiTabs.setTabText(self.guiTabs.indexOf(self.guiTabFromSound), _translate("MainWindow", "Decode", None))
         self.label_10.setText(_translate("MainWindow", "©2018 Piotr Mikołajek & Michał Trojnarski", None))
 
+    #moves options between tabs
+    def tabChanged(self, tab_ind):
+        if tab_ind == 1 :
+            new_parent = self.guiTabFromSound
+        else:
+            new_parent = self.guiTabToSound
+        self.guiBitsSlider.setParent(new_parent)
+        self.guiBitsSlider.show()
+        self.guiToSoundChannelGroup.setParent(new_parent)
+        self.guiToSoundChannelGroup.show()
+        self.label_4.setParent(new_parent)
+        self.label_4.show()
+        self.guiBitsEdit.setParent(new_parent)
+        self.guiBitsEdit.show()
 
-    
     def logPrint(self, data):
         self.guiLog.append(time.ctime()+": " +data)
     def toSoundSoundButtonClicked(self):
@@ -181,7 +203,7 @@ class Ui_MainWindow(object):
         self.guiToSoundSoundDirEdit.setText(file)
     def toSoundImageButtonClicked(self):
         file = str(QtGui.QFileDialog.getOpenFileName(self.centralwidget, "Select File", 
-         'c:\\',"Image files (*.jpg *.png)"))
+         'c:\\',"Image files (*.jpg)"))
         self.guiToSoundImageDirEdit.setText(file)
     def fromSoundSoundButtonClicked(self):
         file = str(QtGui.QFileDialog.getOpenFileName(self.centralwidget, "Select File", 
@@ -209,8 +231,13 @@ class Ui_MainWindow(object):
         bits = int(self.guiBitsEdit.text())
 
         self.logPrint('Starting encoding: \n - Audio File: ' + soundDir + '\n - Image File: ' + imageDir + '\n - Channels used: ' + channel + '\n - LSB used: '  + str(bits))
-        print((soundDir,imageDir,channel,bits))
-        #WYWOŁANIE  KODOWANIA TUTAJ 
+
+        outputDir = '/'.join(soundDir.split("/")[:-1]) + '/' + soundDir.split("/")[-1].split(".")[0] + "ENCODED.wav";
+
+        print(outputDir)
+        t = threading.Thread(target=AudioImageProcessing.AudioImageProcessing.encodeImageInSoundWithWriting ,  args=(soundDir,imageDir,outputDir,channel,bits,))
+        threads.append(t)
+        t.start()
     def decodeStart(self):
         imageDir = self.guiFromSoundImageDirEdit.text()
         if len(imageDir) < 3 :  
@@ -220,11 +247,26 @@ class Ui_MainWindow(object):
         if len(soundDir) < 3 :  
             self.logPrint("Improper input sound file directory")
             return
+        channel = []
+        if self.guiChannelsLeftB.isChecked():
+            channel = 'L'
+        elif self.guiChannelsRightB.isChecked():
+            channel = 'R'
+        else:
+            channel = 'L+R'
+        bits = int(self.guiBitsEdit.text())
  
         self.logPrint('Starting decoding: \n - Audio File: ' + soundDir + '\n - Output directory: ' + imageDir)
-        print((soundDir,imageDir))
-        #WYWOŁANIE  DEKODOWANIA TUTAJ 
-
+        t = threading.Thread(target=AudioImageProcessing.AudioImageProcessing.decodeImageFromAudio ,  args=(soundDir,imageDir+'\DECODED.jpg',channel,bits,))
+        threads.append(t)
+        t.start()
+    def threadLogReader(self):
+        while(1) :
+            if AudioImageProcessing.AudioImageProcessing.logGet():
+                for s in AudioImageProcessing.AudioImageProcessing.logGet() : self.logPrint(s)
+                AudioImageProcessing.AudioImageProcessing.logClear()
+            time.sleep(0.1)
+            
 
 import gui_z_rc
 
