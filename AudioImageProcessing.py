@@ -209,8 +209,6 @@ class AudioImageProcessing:
             AudioImageProcessing.logPut('Processing decoded data...')
             bytes_array = bytearray(bytes_values)
             AudioImageProcessing.logPut('Writing decoded data to ' +  outputImageDir + '...')
-            output_file = open('decoded_file.txt', 'wb')
-            output_file.write(bytes_array)
             output_image = open(outputImageDir, 'wb')
             output_image.write(bytes_array)
             AudioImageProcessing.logPut('Decoding finished')
